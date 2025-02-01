@@ -1074,88 +1074,87 @@ const copyToClipboard = () => {
         >
         <h1>Multiple Background CSS Generator</h1>
         <p class="logo"><a href="https://tomippe.jp/" target="_blank"><img src="https://apps.tomippe.jp/logo.svg" alt="Studio Tomippe"></a></p>
-        <div class="canvas" ref="canvas" :style="{
-          clipPath: canvasInner ? 'inset('+canvasInnerInsetVal+'px)' : 'inset(0px)'
-        }">
+        <div class="canvas" ref="canvas">
           <div class="canvas-inner" :style="{
             backgroundColor: backgroundColor,
             inset: canvasInner ? canvasInnerInsetVal+'px' : '0px'
-          }"></div>
-          <template v-for="(image, index) in images" :key="index">
-            <div 
-              class="image-container"
-              :class="{ selected: selectedImage === index }"
-              :style="{
-                position: 'absolute',
-                left: `${image.x}px`,
-                top: `${image.y}px`,
-                zIndex: index,
-                '--blend-mode': image.blendMode
-              }"
-              @pointerdown.prevent="startDrag($event, index)"
-              @click.stop
-            >
+          }">
+            <template v-for="(image, index) in images" :key="index">
               <div 
-                class="tile-container" 
-                v-if="image.repeat !== 'no-repeat'"
-              >
-                <div 
-                  class="tile-overlay"
-                  :style="{
-                    backgroundImage: `url(${image.url})`,
-                    backgroundRepeat: image.repeat,
-                    backgroundSize: `${image.width}px ${image.height}px`
-                  }"
-                ></div>
-              </div>
-              <div class="main-image"
+                class="image-container"
+                :class="{ selected: selectedImage === index }"
                 :style="{
-                  position: 'relative'
+                  position: 'absolute',
+                  left: `${image.x}px`,
+                  top: `${image.y}px`,
+                  zIndex: index,
+                  '--blend-mode': image.blendMode
                 }"
+                @pointerdown.prevent="startDrag($event, index)"
+                @click.stop
               >
-                <img 
-                  :src="image.url" 
-                  :style="{
-                    width: image.widthUnit === 'auto' ? 'auto !important' : `${image.width}px !important`,
-                    height: image.heightUnit === 'auto' ? 'auto !important' : `${image.height}px !important`,
-                    objectFit: 'fill',
-                    objectPosition: 'center'
-                  }"
-                  draggable="false"
+                <div 
+                  class="tile-container" 
+                  v-if="image.repeat !== 'no-repeat'"
                 >
-              </div>
-              <div class="bounding-box">
-                <div class="coordinates" v-show="isDragging || isResizing">
-                  x: {{ formatDisplayValue(displayValue(image, 'x'), image.xUnit) }}, 
-                  y: {{ formatDisplayValue(displayValue(image, 'y'), image.yUnit) }}
-                  w: {{ formatDisplayValue(displayValue(image, 'width'), image.widthUnit) }}, 
-                  h: {{ formatDisplayValue(displayValue(image, 'height'), image.heightUnit) }}
+                  <div 
+                    class="tile-overlay"
+                    :style="{
+                      backgroundImage: `url(${image.url})`,
+                      backgroundRepeat: image.repeat,
+                      backgroundSize: `${image.width}px ${image.height}px`
+                    }"
+                  ></div>
                 </div>
-                <button 
-                  class="delete-button"
-                  @click.prevent.stop="removeImage(index)"
-                >×</button>
-                <div 
-                  class="resize-handle top-left"
-                  @pointerdown.prevent.stop="startResize($event, index, 'top-left')"
-                ></div>
-                <div 
-                  class="resize-handle bottom-left"
-                  @pointerdown.prevent.stop="startResize($event, index, 'bottom-left')"
-                ></div>
-                <div 
-                  class="resize-handle bottom-right"
-                  @pointerdown.prevent.stop="startResize($event, index, 'bottom-right')"
-                ></div>
-                <button 
-                  class="aspect-ratio-lock"
-                  @click.prevent.stop="toggleAspectRatio(index)"
-                  :class="{ locked: aspectRatioLocked }"
-                  title="Lock aspect ratio"
-                >⛓</button>
+                <div class="main-image"
+                  :style="{
+                    position: 'relative'
+                  }"
+                >
+                  <img 
+                    :src="image.url" 
+                    :style="{
+                      width: image.widthUnit === 'auto' ? 'auto !important' : `${image.width}px !important`,
+                      height: image.heightUnit === 'auto' ? 'auto !important' : `${image.height}px !important`,
+                      objectFit: 'fill',
+                      objectPosition: 'center'
+                    }"
+                    draggable="false"
+                  >
+                </div>
+                <div class="bounding-box">
+                  <div class="coordinates" v-show="isDragging || isResizing">
+                    x: {{ formatDisplayValue(displayValue(image, 'x'), image.xUnit) }}, 
+                    y: {{ formatDisplayValue(displayValue(image, 'y'), image.yUnit) }}
+                    w: {{ formatDisplayValue(displayValue(image, 'width'), image.widthUnit) }}, 
+                    h: {{ formatDisplayValue(displayValue(image, 'height'), image.heightUnit) }}
+                  </div>
+                  <button 
+                    class="delete-button"
+                    @click.prevent.stop="removeImage(index)"
+                  >×</button>
+                  <div 
+                    class="resize-handle top-left"
+                    @pointerdown.prevent.stop="startResize($event, index, 'top-left')"
+                  ></div>
+                  <div 
+                    class="resize-handle bottom-left"
+                    @pointerdown.prevent.stop="startResize($event, index, 'bottom-left')"
+                  ></div>
+                  <div 
+                    class="resize-handle bottom-right"
+                    @pointerdown.prevent.stop="startResize($event, index, 'bottom-right')"
+                  ></div>
+                  <button 
+                    class="aspect-ratio-lock"
+                    @click.prevent.stop="toggleAspectRatio(index)"
+                    :class="{ locked: aspectRatioLocked }"
+                    title="Lock aspect ratio"
+                  >⛓</button>
+                </div>
               </div>
-            </div>
-</template>
+            </template>
+          </div>
         </div>
       </div>
     </div>
@@ -1181,18 +1180,18 @@ const copyToClipboard = () => {
               <div class="quick-buttons" v-if="images[selectedImage].xUnit === '%'">
                 <button @click="updateImageProperty(selectedImage, 'x', 0)"
                 :disabled="(Math.abs(images[selectedImage].width + canvasInnerInset*2 - canvasContainer.getBoundingClientRect().width) < 1 && 
-                           images[selectedImage].xUnit === '%' && 
-                           images[selectedImage].widthUnit === '%')">{{images[selectedImage].xBase === 'right' ? 'right' : 'left'}}</button>
+                            images[selectedImage].xUnit === '%' && 
+                            images[selectedImage].widthUnit === '%')">{{images[selectedImage].xBase === 'right' ? 'right' : 'left'}}</button>
                 <button @click="updateImageProperty(selectedImage, 'x', 50)"
                 :disabled="(Math.abs(images[selectedImage].width + canvasInnerInset*2 - canvasContainer.getBoundingClientRect().width) < 1 && 
-                           images[selectedImage].xUnit === '%' && 
-                           images[selectedImage].widthUnit === '%')">center</button>
+                            images[selectedImage].xUnit === '%' && 
+                            images[selectedImage].widthUnit === '%')">center</button>
                 <button @click="updateImageProperty(selectedImage, 'x', 100)"
                 :disabled="images[selectedImage].xUnit === 'auto' || 
                           images[selectedImage].xUnit === 'center' || 
                           (Math.abs(images[selectedImage].width + canvasInnerInset*2 - canvasContainer.getBoundingClientRect().width) < 1 && 
-                           images[selectedImage].xUnit === '%' && 
-                           images[selectedImage].widthUnit === '%')">{{images[selectedImage].xBase === 'right' ? 'left' : 'right'}}</button>
+                            images[selectedImage].xUnit === '%' && 
+                            images[selectedImage].widthUnit === '%')">{{images[selectedImage].xBase === 'right' ? 'left' : 'right'}}</button>
               </div>
               <div class="quick-buttons" v-if="['vw', 'vh'].includes(images[selectedImage].xUnit)">
                 <button @click="updateImageProperty(selectedImage, 'x', 0)">{{images[selectedImage].xBase === 'right' ? 'right' : 'left'}}</button>
@@ -1215,8 +1214,8 @@ const copyToClipboard = () => {
                 :disabled="images[selectedImage].xUnit === 'auto' || 
                           images[selectedImage].xUnit === 'center' || 
                           (Math.abs(images[selectedImage].width + canvasInnerInset*2 - canvasContainer.getBoundingClientRect().width) < 1 && 
-                           images[selectedImage].xUnit === '%' && 
-                           images[selectedImage].widthUnit === '%')"
+                            images[selectedImage].xUnit === '%' && 
+                            images[selectedImage].widthUnit === '%')"
                 @keydown="e => {
                   if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
                     const value = Number(e.target.value)
@@ -1254,13 +1253,13 @@ const copyToClipboard = () => {
               <div class="quick-buttons" v-if="images[selectedImage].yUnit === '%'">                
                 <button @click="updateImageProperty(selectedImage, 'y', 0)"
                 :disabled="(Math.abs(images[selectedImage].height + canvasInnerInset*2 - canvasContainer.getBoundingClientRect().height) < 10 && 
-                           images[selectedImage].heightUnit === '%')">{{images[selectedImage].yBase === 'bottom' ? 'bottom' : 'top'}}</button>
+                            images[selectedImage].heightUnit === '%')">{{images[selectedImage].yBase === 'bottom' ? 'bottom' : 'top'}}</button>
                 <button @click="updateImageProperty(selectedImage, 'y', 50)"
                 :disabled="(Math.abs(images[selectedImage].height + canvasInnerInset*2 - canvasContainer.getBoundingClientRect().height) < 10 && 
-                           images[selectedImage].heightUnit === '%')">center</button>
+                            images[selectedImage].heightUnit === '%')">center</button>
                 <button @click="updateImageProperty(selectedImage, 'y', 100)"
                 :disabled="(Math.abs(images[selectedImage].height + canvasInnerInset*2 - canvasContainer.getBoundingClientRect().height) < 10 && 
-                           images[selectedImage].heightUnit === '%')">{{images[selectedImage].yBase === 'bottom' ? 'top' : 'bottom'}}</button>
+                            images[selectedImage].heightUnit === '%')">{{images[selectedImage].yBase === 'bottom' ? 'top' : 'bottom'}}</button>
               </div>
               <div class="quick-buttons" v-if="['vw', 'vh'].includes(images[selectedImage].yUnit)">
                 <button @click="updateImageProperty(selectedImage, 'y', 0)">{{images[selectedImage].yBase === 'bottom' ? 'bottom' : 'top'}}</button>
@@ -1283,8 +1282,8 @@ const copyToClipboard = () => {
                 :disabled="images[selectedImage].yUnit === 'auto' || 
                           images[selectedImage].yUnit === 'center' || 
                           (Math.abs(images[selectedImage].height + canvasInnerInset*2 - canvasContainer.getBoundingClientRect().height) < 1 && 
-                           images[selectedImage].yUnit === '%' && 
-                           images[selectedImage].heightUnit === '%')"
+                            images[selectedImage].yUnit === '%' && 
+                            images[selectedImage].heightUnit === '%')"
                 @keydown="e => {
                   if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
                     const value = Number(e.target.value)
@@ -1656,6 +1655,7 @@ h1 {
   border-radius: 4px;
   overflow: visible;
   transition: clip-path 1s linear;
+  container-type: size;
 }
 
 .canvas-inner {
