@@ -242,14 +242,18 @@ const updateImageSize = () => {
   const box = canvasInner.value.getBoundingClientRect()
   images.value.forEach((image, index) => {
     const imgEl = document.querySelector(`img[src="${image.url}"]`)
-    if(image.widthUnit === 'auto'){
-      image.widthPx = imgEl.offsetWidth
-      image.widthCss = cssValue(image, 'width', image.width, image.widthUnit)
-    }
-    if(image.heightUnit === 'auto'){
-      image.heightPx = imgEl.offsetHeight
-      image.heightCss = cssValue(image, 'height', image.height, image.heightUnit)
-    }
+    updateImageProperty(index, 'width', image.width)
+    updateImageProperty(index, 'height', image.height)
+    nextTick(() => {
+      if(image.widthUnit === 'auto'){
+        image.widthPx = imgEl.offsetWidth
+        image.widthCss = cssValue(image, 'width', image.width, image.widthUnit)
+      }
+      if(image.heightUnit === 'auto'){
+        image.heightPx = imgEl.offsetHeight
+        image.heightCss = cssValue(image, 'height', image.height, image.heightUnit)
+      }
+    })
     console.log(image.widthCss)
     console.log(image.heightCss)
     handleSizeModeChange(image,image.sizeMode)
@@ -611,13 +615,11 @@ watch(() => images.value.map(image => ({
   })
 }, { deep: true })
 
-watch(
-  () => showCanvasInner,
-  () => {
-    updateImageSize()
-  },
-  { deep: true }  // 深い監視を有効に
-)
+watch(canvasInner.value, () => {
+  nextTick(() => {
+    updateImageSize();
+  })
+})
 
 // LocalStorageに保存する関数を追加
 watch(imgPath, (newValue) => {
