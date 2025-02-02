@@ -6,27 +6,20 @@ const images = ref([])
 const selectedImage = ref(null)
 const canvas = ref(null)
 const canvasContainer = ref(null)
+const canvasInner = ref(null)
 const isDragging = ref(false)
 const isResizing = ref(false)
 const resizeStartPos = ref({ x: 0, y: 0 })
 const leftPanelWidth = ref(50) // パーセント単位
 const topPanelHeight = ref(60) // パーセント単位
 const dragOffset = ref({ x: 0, y: 0 })
+const currentPos = ref({ x: 0, y: 0 })
 const aspectRatioLocked = ref(true)
 const imgPath = ref(localStorage.getItem('imgPath') || '')
 const useShortcode = ref(localStorage.getItem('useShortcode') !== 'false') // デフォルトはtrue
 const backgroundColor = ref('')
 const fileInput = ref(null)
-
-const canvasInnerInsetVal = 50;
-let canvasInner = ref(true)
-let canvasInnerInset = ref(canvasInnerInsetVal)
-const targetInset = ref(0)
-watch(canvasInner, (newValue) => {
-  targetInset.value = newValue ? canvasInnerInsetVal : 0;
-  gsap.to(canvasInnerInset, { duration: 1, value: targetInset.value, ease: "none" });
-});
-
+let showCanvasInner = ref(true)
 
 const openFileDialog = () => {
   fileInput.value.click()
@@ -54,16 +47,17 @@ const addImage = (url, path) => {
   const newImage = {
     url,
     path,
-    x: 0,  // ピクセル単位で保持
-    y: 0,  // ピクセル単位で保持
-    width: 0,  // ピクセル単位で保持
-    height: 0,  // ピクセル単位で保持
     xBase: 'left',
-    yBase: 'top',
+    x: 0,
     xUnit: '%',
+    yBase: 'top',
+    y: 0,
     yUnit: '%',
+    width: 0,
     widthUnit: '%',
+    height: 0,
     heightUnit: 'auto',
+    ratio: 1,
     repeat: 'no-repeat',
     sizeMode: 'custom',
     blendMode: 'normal'
@@ -74,30 +68,23 @@ const addImage = (url, path) => {
   // 画像の読み込み完了後に実際のサイズを設定
   const img = new Image()
   img.onload = () => {
-    const container = canvasContainer.value
-    if (!container) return
-    const rect = container.getBoundingClientRect()    
+    newImage.ratio = img.width / img.height
+    const box = canvasInner.value.getBoundingClientRect()
     // 初期サイズを設定
-    if(newImage.width / newImage.height >= (rect.width - canvasInnerInset.value*2) / (rect.height - canvasInnerInset.value*2)) {
-      newImage.width = (rect.width - canvasInnerInset.value*2) * 0.7
-      newImage.height = (rect.width - canvasInnerInset.value*2) * 0.7 * (img.height / img.width)
+    if(img.width / img.height >= box.width / box.height) {
+      newImage.widthUnit = '%'
+      newImage.heightUnit = 'auto'
+      newImage.width = unitValue(newImage,'width',box.width * 0.7,newImage.widthUnit)
     } else {
-      newImage.height = (rect.height - canvasInnerInset.value*2) * 0.7
-      newImage.width = (rect.height - canvasInnerInset.value*2) * 0.7 * (img.width / img.height)
+      newImage.widthUnit = 'auto'
+      newImage.heightUnit = '%'
+      newImage.height = unitValue(newImage,'height',box.height * 0.7,newImage.heightUnit)
     }    
     images.value[index] = {...newImage}
     // 内部値を更新（非同期処理）
     nextTick(() => {
-      updateInternalValues(index)
-      images.value[index] = newImage
-      nextTick(() => {
-        updateImageProperty(index, 'x', 50)
-        updateImageProperty(index, 'y', 50)
-      })
-      newImage.xValue = newImage.x
-      newImage.yValue = newImage.y
-      newImage.widthValue = newImage.width
-      newImage.heightValue = newImage.height
+      updateImageProperty(index, 'x', 50)
+      updateImageProperty(index, 'y', 50)
     })
   }
   img.src = url
@@ -107,7 +94,7 @@ const startDrag = (event, index) => {
   if (event.button !== 0) return // 左クリックのみ許可
   isDragging.value = true
   selectedImage.value = index
-  
+  const image = images.value[selectedImage.value]
   const imageEl = event.target.closest('.image-container')
   if (!imageEl) return
   
@@ -116,71 +103,70 @@ const startDrag = (event, index) => {
   
   // クリック位置と画像の左上との差分を保存
   dragOffset.value = {
-    x: event.clientX - imageEl.offsetLeft,
-    y: event.clientY - imageEl.offsetTop
+    x: event.clientX - px(image,'x',image.x,image.xUnit),
+    y: event.clientY - px(image,'y',image.y,image.yUnit)
+  }
+  
+  currentPos.value = {
+    x: imageEl.offsetLeft,
+    y: imageEl.offsetTop
+  }
+}
+
+const startResize = (event, index, corner) => {
+  if (event.button !== 0) return // 左クリックのみ許可
+  isResizing.value = true
+  selectedImage.value = index
+  const image = images.value[selectedImage.value]
+  const imageEl = event.target.closest('.image-container')
+  if (!imageEl) return
+  
+  // ポインターキャプチャを開始
+  event.target.setPointerCapture(event.pointerId)
+  
+  // リサイズ開始位置と方向を記録
+  resizeStartPos.value = {
+    x: event.clientX,
+    y: event.clientY,
+    width: imageEl.offsetWidth,
+    height: imageEl.offsetHeight,
+    corner
   }
 }
 
 
 const handlePointerMove = (event) => {
+  const box = canvasInner.value.getBoundingClientRect() 
+  const image = images.value[selectedImage.value]
+  const imgCtn = document.querySelector('.image-container.selected')
+  const imgEl = document.querySelector('.image-container.selected img')
+
   // ドラッグ処理
   if (isDragging.value && selectedImage.value !== null) {
-    const imageEl = document.querySelector('.image-container.selected')
-    if (!imageEl) return
-
-    const image = images.value[selectedImage.value]
-    const containerRect = canvasContainer.value.getBoundingClientRect() 
-
     // 新しい位置 = マウス位置 - ドラッグ開始時のオフセット
-    const newLeft = event.clientX - dragOffset.value.x
-    const newTop = event.clientY - dragOffset.value.y
+    const newLeft = (event.clientX - dragOffset.value.x) * 1
+    const newTop = (event.clientY - dragOffset.value.y) * 1
 
     // W=100%かつX=%の場合のみ、X方向の移動を制限
-    const isWidthFull = Math.abs(image.width + canvasInnerInset.value*2 - containerRect.width) < 1
+    const isWidthFull = Math.abs(px(image, 'width', image.width, image.widthUnit) - box.width) < 1
     const shouldLockX = isWidthFull && image.xUnit === '%' && image.widthUnit === '%'
     
     // H=100%かつY=%の場合のみ、Y方向の移動を制限
-    const isHeightFull = Math.abs(image.height + canvasInnerInset.value*2 - containerRect.height) < 1
+    const isHeightFull = Math.abs(px(image, 'height', image.height, image.heightUnit) - box.height) < 1
     const shouldLockY = isHeightFull && image.yUnit === '%' && image.heightUnit === '%'
-
-    // 画像の位置を更新（ピクセル単位）
-    imageEl.style.left = shouldLockX ? `${image.x}px` : `${newLeft}px`
-    imageEl.style.top = shouldLockY ? `${image.y}px` : `${newTop}px`
-
+    
     // 内部状態を更新
     if (!shouldLockX) {
-      if (image.xUnit === '%') {
-        const imgEl = imageEl.querySelector('img')
-        if (imgEl) {
-          image.width = imgEl.offsetWidth  // 実際の幅を更新
-          image.x = newLeft
-        }
-      } else {
-        image.x = newLeft
-      }
+      image.x = unitValue(image,'x',newLeft,image.xUnit)
     }
     if (!shouldLockY) {
-      if (image.yUnit === '%') {
-        const imgEl = imageEl.querySelector('img')
-        if (imgEl) {
-          image.height = imgEl.offsetHeight  // 実際の高さを更新
-          image.y = newTop
-        }
-      } else {
-        image.y = newTop
-      }
+      image.y = unitValue(image,'y',newTop,image.yUnit)
     }
-
-    // 最後に一度だけVue.jsの反応性を確保
     images.value[selectedImage.value] = {...image}
   }
 
   // リサイズ処理
   if (isResizing.value && selectedImage.value !== null) {
-    const imageEl = document.querySelector('.image-container.selected')
-    if (!imageEl) return
-
-    const image = images.value[selectedImage.value]
     const { corner } = resizeStartPos.value
     let newWidth, newHeight
 
@@ -189,71 +175,41 @@ const handlePointerMove = (event) => {
       case 'top-left':
         newWidth = Math.max(10, resizeStartPos.value.width - (event.clientX - resizeStartPos.value.x))
         newHeight = Math.max(10, resizeStartPos.value.height - (event.clientY - resizeStartPos.value.y))
-        if (aspectRatioLocked.value) {
-          const ratio = resizeStartPos.value.width / resizeStartPos.value.height
-          newHeight = newWidth / ratio
-        }
-        image.x = resizeStartPos.value.x + resizeStartPos.value.width - newWidth
-        image.y = resizeStartPos.value.y + resizeStartPos.value.height - newHeight
         break
       case 'top-right':
-        newWidth = Math.max(10, event.clientX - resizeStartPos.value.x)
+        newWidth = Math.max(10, event.clientX - resizeStartPos.value.x + resizeStartPos.value.width)
         newHeight = Math.max(10, resizeStartPos.value.height - (event.clientY - resizeStartPos.value.y))
-        if (aspectRatioLocked.value) {
-          const ratio = resizeStartPos.value.width / resizeStartPos.value.height
-          newHeight = newWidth / ratio
-        }
-        image.y = resizeStartPos.value.y + resizeStartPos.value.height - newHeight
         break
       case 'bottom-left':
         newWidth = Math.max(10, resizeStartPos.value.width - (event.clientX - resizeStartPos.value.x))
-        newHeight = Math.max(10, event.clientY - resizeStartPos.value.y)
-        if (aspectRatioLocked.value) {
-          const ratio = resizeStartPos.value.width / resizeStartPos.value.height
-          newHeight = newWidth / ratio
-        }
-        image.x = resizeStartPos.value.x + resizeStartPos.value.width - newWidth
+        newHeight = Math.max(10, event.clientY - resizeStartPos.value.y + resizeStartPos.value.height)
         break
       case 'bottom-right':
-        newWidth = Math.max(10, event.clientX - resizeStartPos.value.x)
-        newHeight = Math.max(10, event.clientY - resizeStartPos.value.y)
-        if (aspectRatioLocked.value) {
-          const ratio = resizeStartPos.value.width / resizeStartPos.value.height
-          newHeight = newWidth / ratio
-        }
+        newWidth = Math.max(10, event.clientX - resizeStartPos.value.x + resizeStartPos.value.width)
+        newHeight = Math.max(10, event.clientY - resizeStartPos.value.y + resizeStartPos.value.height)
         break
     }
-
-    // サイズを更新
-    image.width = newWidth
-    image.height = newHeight
-    image.sizeMode = 'custom'
+    if (aspectRatioLocked.value) {
+      const ratio = resizeStartPos.value.width / resizeStartPos.value.height
+      newHeight = newWidth / ratio
+    }
 
     // 単位の更新
     if (!aspectRatioLocked.value) {
-      // 固定OFFの場合
       if (image.widthUnit === 'auto') {
         image.widthUnit = '%'
-        const containerRect = canvasContainer.value.getBoundingClientRect()
-        image.width = (newWidth / containerRect.width) * 100
+        // image.width = (newWidth / box.width) * 100
       }
       if (image.heightUnit === 'auto') {
         image.heightUnit = '%'
-        const containerRect = canvasContainer.value.getBoundingClientRect()
-        image.height = (newHeight / containerRect.height) * 100
+        // image.height = (newHeight / box.height) * 100
       }
     }
-
-    // スタイルを更新
-    imageEl.style.left = `${image.x}px`
-    imageEl.style.top = `${image.y}px`
     
-    // imgタグを取得して更新
-    const imgEl = imageEl.querySelector('img')
-    if (imgEl) {
-      imgEl.style.width = image.widthUnit === 'auto' ? 'auto' : `${newWidth}px`
-      imgEl.style.height = image.heightUnit === 'auto' ? 'auto' : `${newHeight}px`
-    }
+     // 内部状態を更新
+    image.width = unitValue(image,'width',newWidth,image.widthUnit)
+    image.height = unitValue(image,'height',newHeight,image.heightUnit)
+    image.sizeMode = 'custom'
 
     // 最後に一度だけVue.jsの反応性を確保
     images.value[selectedImage.value] = {...image}
@@ -282,72 +238,27 @@ const handleKeyDown = (event) => {
   }
 }
 
-let windowResizing = false
+const updateImageSize = () => {
+  const box = canvasInner.value.getBoundingClientRect()
+  images.value.forEach((image, index) => {
+    const imgEl = document.querySelector(`img[src="${image.url}"]`)
+    if(image.widthUnit === 'auto'){
+      image.widthPx = imgEl.offsetWidth
+      image.widthCss = cssValue(image, 'width', image.width, image.widthUnit)
+    }
+    if(image.heightUnit === 'auto'){
+      image.heightPx = imgEl.offsetHeight
+      image.heightCss = cssValue(image, 'height', image.height, image.heightUnit)
+    }
+    console.log(image.widthCss)
+    console.log(image.heightCss)
+    handleSizeModeChange(image,image.sizeMode)
+  })
+}
+
 // リサイズ時の処理を修正
 const handleResize = () => {
-  // windowResizing = true;
-  // selectedImage.value = null;
-  // const container = canvasContainer.value
-  // if (!container) return;
-  // const containerRect = container.getBoundingClientRect();
-  // images.value.forEach((thisImage, index) => {
-  //   const imgEl = document.querySelector(`img[src="${thisImage.url}"]`); // 画像要素を取得
-  //   if (thisImage.sizeMode === 'contain' || thisImage.sizeMode === 'cover') {
-  //     const isWideImage = imgEl.naturalWidth / imgEl.naturalHeight > (containerRect.width - canvasInnerInset.value*2) / (containerRect.height - canvasInnerInset.value*2);
-  //     const isContain = thisImage.sizeMode === 'contain';
-  //     thisImage.isWideChanged = false;        
-  //     if (isWideImage && (thisImage[isContain ? 'heightUnit' : 'widthUnit'] !== "auto")) {
-  //       thisImage.isWideChanged = true;
-  //       thisImage[isContain ? 'widthUnit' : 'heightUnit'] = '%';
-  //       thisImage[isContain ? 'heightUnit' : 'widthUnit'] = 'auto';
-  //       thisImage[isContain ? 'width' : 'height'] = containerRect[isContain ? 'width' : 'height'] - canvasInnerInset.value*2;
-  //     } else if(!isWideImage && thisImage[isContain ? 'widthUnit' : 'heightUnit'] !== "auto") {
-  //       thisImage.isWideChanged = true;
-  //       thisImage[isContain ? 'heightUnit' : 'widthUnit'] = '%';
-  //       thisImage[isContain ? 'widthUnit' : 'heightUnit'] = 'auto';
-  //       thisImage[isContain ? 'height' : 'width'] = containerRect[isContain ? 'height' : 'width'] - canvasInnerInset.value*2;
-  //     }
-  //   }
-  // });
-  // const updatedImages = images.value.map((image, index) => {
-  //   if (!image) return null; // 画像が存在しない場合はスキップ
-  //   const thisImage = { ...image };
-  //   const savedState = displayStates.value.get(`${index}`);
-  //   if (savedState) {
-  //     // 保存された表示値を使用して内部pxを再計算
-  //     ['width', 'height'].forEach(prop => {
-  //       if (thisImage[prop + 'Unit'] !== 'auto' && thisImage[prop + 'Unit'] !== 'center') {
-  //         const newSize = convertToPixels(savedState[prop],thisImage[prop + 'Unit'],containerRect,prop,thisImage);
-  //         if (!isNaN(newSize)) {
-  //           thisImage[prop] = newSize;
-  //         }
-  //       }
-  //     });
-  //     // 保存された%値をnewImageに保存
-  //     thisImage.displayValue = {
-  //       x: savedState.x,
-  //       y: savedState.y
-  //     };
-  //   }
-  //   return thisImage;
-  // }).filter(image => image !== null); // nullの要素を除外
-
-  // nextTick(() => {
-  //   // 一括更新
-  //   images.value = updatedImages;
-  //   images.value.forEach((thisImage, index) => {
-  //     const imgEl = document.querySelector(`img[src="${thisImage.url}"]`); // 画像要素を取得
-  //     if (thisImage.widthUnit === 'auto') {
-  //       thisImage.width = imgEl.offsetWidth; // 画像の実際の幅を保存
-  //     }
-  //     if (thisImage.heightUnit === 'auto') {
-  //       thisImage.height = imgEl.offsetHeight; // 画像の実際の高さを保存
-  //     }
-  //     thisImage.x = convertToPixels(thisImage.displayValue.x, thisImage.xUnit, containerRect, 'x', thisImage);
-  //     thisImage.y = convertToPixels(thisImage.displayValue.y, thisImage.yUnit, containerRect, 'y', thisImage);
-  //   });
-  // });
-  // windowResizing = false;
+  updateImageSize()
 }
 // マウント時にリサイズ監視を設定
 onMounted(() => {
@@ -373,57 +284,6 @@ onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
 })
 
-
-// let canvasInnerInsetChanging = false
-// watch(canvasInnerInset, (newValue) => {
-//   canvasInnerInsetChanging = true
-  
-//   // 現在の画像位置を保存
-//   images.value.forEach((image, index) => {
-//     if (!isNaN(displayValue(image, 'x')) && 
-//         displayValue(image, 'x') != -Infinity && 
-//         displayValue(image, 'x') != Infinity && 
-//         !isNaN(displayValue(image, 'y')) && 
-//         displayValue(image, 'y') != -Infinity && 
-//         displayValue(image, 'y') != Infinity) {
-//       displayStates.value.set(`${index}`, {
-//         x: displayValue(image, 'x'),
-//         y: displayValue(image, 'y'),
-//         width: displayValue(image, 'width'),
-//         height: displayValue(image, 'height')
-//       })
-//     }
-//   })
-
-//   nextTick(() => {
-//     handleResize();
-//   })
-//   canvasInnerInsetChanging = false
-// })
-
-const startResize = (event, index, corner) => {
-  if (event.button !== 0) return // 左クリックのみ許可
-  isResizing.value = true
-  selectedImage.value = index
-  
-  const imageEl = event.target.closest('.image-container')
-  if (!imageEl) return
-  
-  // ポインターキャプチャを開始
-  event.target.setPointerCapture(event.pointerId)
-  
-  // リサイズ開始位置と方向を記録
-  resizeStartPos.value = {
-    x: imageEl.offsetLeft,
-    y: imageEl.offsetTop,
-    width: imageEl.offsetWidth,
-    height: imageEl.offsetHeight,
-    corner
-  }
-}
-
-
-
 // アスペクト比固定のトグル処理
 const toggleAspectRatio = (index) => {
   const image = images.value[index]
@@ -440,12 +300,6 @@ const toggleAspectRatio = (index) => {
       const containerRect = canvasContainer.value.getBoundingClientRect()
       image.width = (image.width / containerRect.width) * 100
     }
-    // 内部値を更新（非同期処理）
-    nextTick(() => {
-      updateInternalValues(index)
-      // updateInternalValues完了後に反応性を確保
-      images.value[index] = image
-    })
   } else {
     // OFFにした時
     if (image.widthUnit === 'auto' || image.heightUnit === 'auto') {
@@ -467,36 +321,6 @@ const isAspectRatioLocked = computed(() => {
   // W/Hの両方がauto以外の場合はオフ、それ以外（一方または両方がautoの場合）はオン
   return !(image.widthUnit !== 'auto' && image.heightUnit !== 'auto')
 })
-
-// let previousSelectedImage = selectedImage.value;
-// // 画像選択時の処理を改善
-// watch(() => selectedImage.value, (newValue, oldValue) => {
-//   // 前の選択をクリア
-//   if (oldValue !== null) {
-//     displayStates.value.delete(`${oldValue}`);
-//   }
-
-//   if (newValue !== null) {
-//     const container = canvasContainer.value;
-//     if (!container) return;
-
-//     // 新しい画像の表示状態を保存する前に、一度内部値を更新
-//     nextTick(() => {
-//       updateInternalValues(newValue);
-      
-//       const image = images.value[newValue];
-//       const containerRect = container.getBoundingClientRect();
-
-//       // 現在の表示状態を保存
-//       displayStates.value.set(`${newValue}`, {
-//         x: displayValue(image, 'x'),
-//         y: displayValue(image, 'y'),
-//         width: displayValue(image, 'width'),
-//         height: displayValue(image, 'height')
-//       });
-//     });
-//   }
-// });
 
 // 削除関数を追加
 const removeImage = (index) => {
@@ -534,108 +358,20 @@ const moveDown = () => {
   }
 }
 
-// watch(() => {
-//   const selected = selectedImage.value;
-//   return selected !== null ? images.value[selected].sizeMode : null;
-// }, (newMode) => {
-//   if (selectedImage.value === null || !newMode) {
-//     previousSelectedImage = null; // 選択が解除された場合
-//     return;
-//   }
-//   // 選択された画像が変わった場合は処理をスキップ
-//   if (previousSelectedImage !== selectedImage.value) {
-//     previousSelectedImage = selectedImage.value;
-//     return;
-//   }
-//   const thisImage = {...images.value[selectedImage.value]};
-//   const containerRect = canvasContainer.value.getBoundingClientRect()
-//   images.value[selectedImage.value] = thisImage
-//   const imgEl = document.querySelector(`img[src="${thisImage.url}"]`)
-
-//   const isWideImage = imgEl.naturalWidth / imgEl.naturalHeight > (containerRect.width - canvasInnerInset.value*2) / (containerRect.height - canvasInnerInset.value*2);
-//   const isContain = newMode === 'contain'
-//   if (isWideImage) {
-//     thisImage[isContain ? 'widthUnit' : 'heightUnit'] = '%'
-//     thisImage[isContain ? 'heightUnit' : 'widthUnit'] = 'auto'
-//     thisImage[isContain ? 'width' : 'height'] = containerRect[isContain ? 'width' : 'height'] - canvasInnerInset.value*2
-//   } else {
-//     thisImage[isContain ? 'heightUnit' : 'widthUnit'] = '%'
-//     thisImage[isContain ? 'widthUnit' : 'heightUnit'] = 'auto'
-//     thisImage[isContain ? 'height' : 'width'] = containerRect[isContain ? 'height' : 'width'] - canvasInnerInset.value*2
-//   }
-//   nextTick(() => {
-//     const containerRect = canvasContainer.value.getBoundingClientRect()
-//     if (thisImage.widthUnit === 'auto') {
-//       thisImage.width = imgEl.offsetWidth; // 画像の実際の幅を保存
-//     }
-//     if (thisImage.heightUnit === 'auto') {
-//       thisImage.height = imgEl.offsetHeight; // 画像の実際の高さを保存
-//     }
-//     updateImageProperty(selectedImage.value, 'x', thisImage.xValue||50)
-//     updateImageProperty(selectedImage.value, 'y', thisImage.yValue||50)
-//     // thisImage.x = convertToPixels(thisImage.xValue||50, thisImage.xUnit, containerRect, 'x', thisImage)
-//     // thisImage.y = convertToPixels(thisImage.yValue||50, thisImage.yUnit, containerRect, 'y', thisImage)
-//   });
-// }, { immediate: true });
-
-const convertToPixels = (value, unit, containerRect, property, image) => {
-  if (unit === 'auto') return value
-  const reverse = (property === 'x' && image.xBase === 'right') || (property === 'y' && image.yBase === 'bottom')
-  let preresult, result
-  if (unit === '%') {
-    if (property === 'x' || property === 'y') {
-      // X/Yの場合は、利用可能スペース-画像サイズを基準に計算
-      const containerSize = property === 'x' ? containerRect.width : containerRect.height
-      const imageSize = property === 'x' ? image.width : image.height
-      preresult = (containerSize - canvasInnerInset.value*2 - imageSize) * value / 100
-      result = reverse ? containerSize - canvasInnerInset.value - preresult - imageSize : canvasInnerInset.value + preresult
-    } else if (property === 'width' || property === 'height'){
-      // W/Hの場合は、キャンバスインナーサイズを基準に計算
-      const containerSize = (property === 'width' ? containerRect.width : containerRect.height) - canvasInnerInset.value*2
-      result = (value / 100) * containerSize
-    }
-  } else if (unit === 'vw' || unit === 'vh') {
-    if (property === 'x' || property === 'y') {
-      // X/Yの場合は、キャンバスインナーサイズを基準に計算
-      const containerSize = property === 'x' ? containerRect.width : containerRect.height
-      const containerSize2 = unit === 'vw' ? containerRect.width : containerRect.height
-      const imageSize = property === 'x' ? image.width : image.height
-      preresult = (value / 100) * containerSize2
-      result = reverse ? containerSize - canvasInnerInset.value - preresult - imageSize : canvasInnerInset.value + preresult
-    } else if (property === 'width' || property === 'height') {
-      // W/Hの場合は、キャンバスサイズを基準に計算
-      const containerSize = unit === 'vw' ? containerRect.width : containerRect.height
-      result = (value / 100) * containerSize
-    }
-  } else {
-    // px, em, rem, ex は100px内側を基準に計算
-    const base = {
-      'px': 1,
-      'em': 16,
-      'rem': 16,
-      'ex': 8
-    }
-    if (property === 'x' || property === 'y') {
-      const containerSize = (property === 'x' ? containerRect.width : containerRect.height)
-      const imageSize = property === 'x' ? image.width : image.height
-      preresult = value * (base[unit] || 1)
-      result = reverse ? containerSize - canvasInnerInset.value - preresult - imageSize : canvasInnerInset.value + preresult
-    } else if (property === 'width' || property === 'height') {
-      result = value * (base[unit] || 1)
-    }
-  }
-  return result
-}
 const px = (image, property, value, unit) => {
   const box = canvasInner.value.getBoundingClientRect()
-  if (unit === 'auto') return value
+  const imgEl = document.querySelector(`img[src="${image.url}"]`)
+  if(!imgEl) return 0
+  if (unit === 'auto') {
+    return property === 'width' ? imgEl.offsetWidth : imgEl.offsetHeight
+  }
   const reverse = (property === 'x' && image.xBase === 'right') || (property === 'y' && image.yBase === 'bottom')
   let preresult, result
   if (unit === '%') {
     if (property === 'x' || property === 'y') {
       // X/Yの場合は、利用可能スペース-画像サイズを基準に計算
       const containerSize = property === 'x' ? box.width : box.height
-      const imageSize = property === 'x' ? image.width : image.height
+      const imageSize = property === 'x' ? imgEl.offsetWidth : imgEl.offsetHeight
       preresult = (containerSize - imageSize) * value / 100
       result = reverse ? containerSize - preresult - imageSize : preresult
     } else if (property === 'width' || property === 'height'){
@@ -657,7 +393,7 @@ const px = (image, property, value, unit) => {
       result = (value / 100) * containerSize
     }
   } else {
-    // px, em, rem, ex は100px内側を基準に計算
+    // px, em, rem, ex
     const base = {
       'px': 1,
       'em': 16,
@@ -676,16 +412,58 @@ const px = (image, property, value, unit) => {
   return result
 }
 
-const convertToCssValue = (value, unit) => {
-  if (unit === 'auto') {
-    return "auto"
-  } else if (unit === 'vw') {
-    return value + 'cqw'
-  } else if (unit === 'vh') {
-    return value + 'cqh'
-  } else { 
-    return value + unit
+
+// 単位変換関数
+const unitValue = (image, property, pixelValue, unit) => {
+  const canvas = canvasContainer.value.getBoundingClientRect()
+  const box = canvasInner.value.getBoundingClientRect()
+  const imgEl = document.querySelector(`img[src="${image.url}"]`)
+  if (unit === 'auto') return unit
+  const reverse = (property === 'x' && image.xBase === 'right') || (property === 'y' && image.yBase === 'bottom')
+  let preresult, result
+  if (unit === '%') {
+    if (property === 'x' || property === 'y') {
+      // X/Yの場合は、利用可能スペースに対する相対位置として計算
+      const containerSize = property === 'x' ? box.width : box.height
+      const imageSize = property === 'x' ? imgEl.offsetWidth : imgEl.offsetHeight
+      preresult = reverse ? containerSize - pixelValue - imageSize : pixelValue
+      result = preresult / (containerSize - imageSize) * 100
+    } else {
+      // W/Hの場合は、キャンバスインナーサイズを基準に計算
+      const containerSize = property === 'width' ? box.width : box.height
+      result = pixelValue / containerSize * 100
+    }
+  } else if (unit === 'vw' || unit === 'vh') {
+    if (property === 'x' || property === 'y') {
+      // X/Yの場合は、キャンバスインナーサイズを基準に計算
+      const containerSize = property === 'x' ? box.width : box.height
+      const containerSize2 = unit === 'vw' ? box.width : box.height
+      const imageSize = property === 'x' ? image.width : image.height
+      preresult = reverse ? containerSize - pixelValue - imageSize : pixelValue
+      result = preresult / containerSize2 * 100
+    } else if (property === 'width' || property === 'height') {
+      // W/Hの場合は、キャンバスサイズを基準に計算
+      const containerSize = (unit === 'vw' ? canvas.width : canvas.height)
+      result = pixelValue / containerSize * 100
+    }
+  } else {
+    // px, em, rem, ex
+    const base = {
+      'px': 1,
+      'em': 16,
+      'rem': 16,
+      'ex': 8
+    }
+    if (property === 'x' || property === 'y') {
+      const containerSize = property === 'x' ? box.width : box.height
+      const imageSize = property === 'x' ? image.width : image.height
+      preresult = reverse ? containerSize - pixelValue - imageSize : pixelValue
+      result = (preresult / (base[unit] || 1))
+    } else if (property === 'width' || property === 'height') {
+      result = (pixelValue / (base[unit] || 1))
+    }
   }
+  return result
 }
 
 // 表示用の値を計算する関数を修正
@@ -698,34 +476,30 @@ const displayValue = (image, property) => {
   }
 }
 
-const updateImageProperty = (index, property, value) => {
-  const image = {...images.value[index]}
-  // 入力値をピクセルに変換
-  const cssValue = convertToCssValue(Number(value), image[property + 'Unit'])  
-  // ピクセル値を設定
-  if (!isNaN(pixelValue)) {
-    image[property] = value
-    image[property+'Css'] = cssValue
-    images.value[index] = image
+const cssValue = (image, property,value, unit) => {
+  const imgEl = document.querySelector(`img[src="${image.url}"]`)
+  if (unit === 'auto') {
+    if(property === 'width') {
+      return (image.heightUnit === 'auto' ? imgEl.naturalWidth : px(image, 'height', image.height, image.heightUnit) * image.ratio) + 'px'
+    } else if(property === 'height') {
+      return (image.widthUnit === 'auto' ? imgEl.naturalHeight : px(image, 'width', image.width, image.widthUnit) / image.ratio) + 'px'
+    }
+    return "auto"
+  } else if (unit === 'vw') {
+    return value + 'cqw'
+  } else if (unit === 'vh') {
+    return value + 'cqh'
+  } else { 
+    return value + unit
   }
 }
 
-// 内部値を更新する関数を追加
-const updateInternalValues = (index) => {
-  const imageEl = document.querySelector('.image-container.selected')
-  if (!imageEl) return
-
-  const image = images.value[index]
-  const imgEl = imageEl.querySelector('img')
-  if (!imgEl) return
-
-  // 実際の表示サイズを取得
-  if (image.widthUnit === 'auto') {
-    image.width = imgEl.offsetWidth
-  }
-  if (image.heightUnit === 'auto') {
-    image.height = imgEl.offsetHeight
-  }
+const updateImageProperty = (index, property, value) => {
+  const image = {...images.value[index]}
+  const css = cssValue(Number(value), image[property + 'Unit'])
+  image[property] = value
+  image[property+'Css'] = css
+  images.value[index] = image
 }
 
 // W/HのUnit変更を監視して、アスペクト比固定の状態を更新
@@ -742,60 +516,19 @@ watch(
     if (aspectRatioLocked.value !== shouldBeLocked) {
       aspectRatioLocked.value = shouldBeLocked
     }
-    // 内部値を更新
-    updateInternalValues(selectedImage.value)
   }
 )
 
 const handleUnitChange = (index, property, newUnit) => {
-  if (index === null || index >= images.value.length) return
-  
+  if (index === null || index >= images.value.length) return  
   const image = {...images.value[index]}
   const container = canvasContainer.value
   const imgEl = document.querySelector(`img[src="${image.url}"]`)
-  if (!container) return
-
-  // centerが選択された場合は、baseをデフォルトに戻す
-  if (newUnit === 'center') {
-    image[property + 'Base'] = property === 'x' ? 'left' : 'top'
-  }
-  
+  const pxValue = image[property + 'Px']
+  const newValue = unitValue(image, property, pxValue, newUnit)
   // 単位を更新
   image[property + 'Unit'] = newUnit
-  
-  // まずVueの反応性を確保してDOMを更新
-  images.value[index] = image
-  
-  // DOM更新後に内部値を更新
-  setTimeout(() => {
-    updateInternalValues(index)
-  }, 50)
-
-  // autoが選択され、widthとheightの両方がautoになった場合は原寸に設定
-  if (newUnit === 'auto' && 
-      ((property === 'width' && image.heightUnit === 'auto') || 
-       (property === 'height' && image.widthUnit === 'auto'))) {
-    const img = document.querySelector(`img[src="${image.url}"]`)
-    if (img) {
-      image.width = img.naturalWidth
-      image.height = img.naturalHeight
-    }
-  }
-  
-  // 位置を更新（ピクセル値は維持）
-  const containerRect = container.getBoundingClientRect()
-  const dimension = property === 'x' || property === 'width' ? 'width' : 'height'
-  
-  if (newUnit === 'center') {
-    // center時は中央に配置
-    const imageSize = dimension === 'width' ? image.width : image.height
-    const containerSize = containerRect[dimension]
-    const oldPixelValue = image[property]
-    const newPixelValue = (containerSize - imageSize) / 2
-    image[property] = newPixelValue  }
-
-  // 反応性を確保
-  images.value[index] = image
+  updateImageProperty(index, property, newValue)
 }
 
 const resetProperty = (property) => {
@@ -826,42 +559,65 @@ const resetProperty = (property) => {
   }
 }
 
-// 表示値を保持するための状態
-const displayStates = ref(new Map())
+const handleSizeModeChange = (image, newmode) => {
+  const mode = newmode ? newmode : image.sizeMode
+  const box = canvasInner.value.getBoundingClientRect()
+  const isWideImage = image.ratio > box.width / box.height    
+  if (mode === 'contain') {
+    if (isWideImage) {
+      // 横長画像の場合
+      image.widthUnit = '%'
+      image.width = 100
+      image.heightUnit = 'auto'
+    } else {
+      // 縦長画像の場合
+      image.heightUnit = '%'
+      image.height = 100
+      image.widthUnit = 'auto'
+    }
+  } else if (mode === 'cover') {
+    if (isWideImage) {
+      // 横長画像の場合
+      image.heightUnit = '%'
+      image.height = 100
+      image.widthUnit = 'auto'
+    } else {
+      // 縦長画像の場合
+      image.widthUnit = '%'
+      image.width = 100
+      image.heightUnit = 'auto'
+    }
+  }
+  updateImageProperty(selectedImage.value, 'width', image.width)
+  updateImageProperty(selectedImage.value, 'height', image.height)
+}
 
-// 内部pxの変更を監視
-// watch(() => images.value.map(img => ({
-//   x: img.x,
-//   y: img.y,
-//   width: img.width,
-//   height: img.height
-// })), (newValues) => {
-//   if (!windowResizing) {  // リサイズ中は更新しない
-//     images.value.forEach((image, index) => {
-//       const key = `${index}`
-//       if(!isNaN(displayValue(image, 'x')) && displayValue(image, 'x') != -Infinity && displayValue(image, 'x') != Infinity && !isNaN(displayValue(image, 'y')) && displayValue(image, 'y') != -Infinity && displayValue(image, 'y') != Infinity){
-//         displayStates.value.set(key, {
-//           x: displayValue(image, 'x'),
-//           y: displayValue(image, 'y'),
-//           width: displayValue(image, 'width'),
-//           height: displayValue(image, 'height')
-//         })
-//       }      
-//     })
-//   }
-//   nextTick(() => {
-//     const img = images.value[selectedImage.value]
-//     const imgEl = document.querySelector('.image-container.selected img')
-//     if (imgEl) {
-//       if (img.widthUnit === 'auto') {
-//         img.width = imgEl.offsetWidth; // 画像の実際の幅を保存
-//       }
-//       if (img.heightUnit === 'auto') {
-//         img.height = imgEl.offsetHeight; // 画像の実際の高さを保存
-//       }
-//     }
-//   })
-// }, { deep: true })
+watch(() => images.value.map(image => ({
+  x: image.x,
+  y: image.y,
+  width: image.width,
+  height: image.height
+})), (newValues) => {
+  const box = canvasContainer.value.getBoundingClientRect()
+  images.value.forEach((image, index) => {
+    image.xPx = px(image, 'x', image.x, image.xUnit)
+    image.yPx = px(image, 'y', image.y, image.yUnit)
+    image.widthPx = px(image, 'width', image.width, image.widthUnit)
+    image.heightPx = px(image, 'height', image.height, image.heightUnit)
+    image.xCss = cssValue(image, 'x', image.x, image.xUnit)
+    image.yCss = cssValue(image, 'y', image.y, image.yUnit)
+    image.widthCss = cssValue(image, 'width', image.width, image.widthUnit)
+    image.heightCss = cssValue(image, 'height', image.height, image.heightUnit)
+  })
+}, { deep: true })
+
+watch(
+  () => showCanvasInner,
+  () => {
+    updateImageSize()
+  },
+  { deep: true }  // 深い監視を有効に
+)
 
 // LocalStorageに保存する関数を追加
 watch(imgPath, (newValue) => {
@@ -886,7 +642,7 @@ const generatedCSS = computed(() => {
   const bgImages = [...images.value].reverse().map(img => {
     // X座標の計算
     const xValue = displayValue(img, 'x')
-    const isWidthFull = Math.abs(img.width + canvasInnerInset.value*2 - containerRect.width) < 1 && img.widthUnit === '%'
+    const isWidthFull = Math.abs(img.width - containerRect.width) < 1 && img.widthUnit === '%'
     const x = img.xUnit === 'center' || xValue === 50 && img.xUnit === '%' || (isWidthFull && xValue === 0)  ? 'center' :
              img.xBase === 'right' ? 
                (xValue === 0 ? 'right' : xValue === 100 && img.xUnit === '%' ? 'left' : `right ${xValue}${img.xUnit}`) :
@@ -894,7 +650,7 @@ const generatedCSS = computed(() => {
     
     // Y座標の計算
     const yValue = displayValue(img, 'y')
-    const isHeightFull = Math.abs(img.height + canvasInnerInset.value*2 - containerRect.height) < 1 && img.heightUnit === '%'
+    const isHeightFull = Math.abs(img.height - containerRect.height) < 1 && img.heightUnit === '%'
     const y = img.yUnit === 'center' || yValue === 50 && img.yUnit === '%' || (isHeightFull && yValue === 0) ? 'center' :
              img.yBase === 'bottom' ? 
                (yValue === 0 ? 'bottom' : yValue === 100 && img.yUnit === '%' ? 'top' : `bottom ${yValue}${img.yUnit}`) :
@@ -998,8 +754,10 @@ const copyToClipboard = () => {
           <label class="checkbox-wrapper">
             <input 
               type="checkbox" 
-              :checked="canvasInner"
-              @change="e => canvasInner = e.target.checked"
+              :checked="showCanvasInner"
+              @change="e => {
+                showCanvasInner = e.target.checked
+              }"
             > 
             <span>Inner</span>
           </label>
@@ -1019,7 +777,7 @@ const copyToClipboard = () => {
           ref="canvasInner"
           :style="{
             backgroundColor: backgroundColor,
-            inset: canvasInner ? canvasInnerInsetVal+'px' : '0px'
+            inset: showCanvasInner ? '50px' : '0px'
           }">
             <template v-for="(image, index) in images" :key="index">
               <div 
@@ -1031,7 +789,9 @@ const copyToClipboard = () => {
                   right: image.xBase !== 'right' ? 'auto' : image.xCss,
                   top: image.yBase === 'bottom' ? 'auto' : image.yCss,
                   bottom: image.yBase !== 'bottom' ? 'auto' : image.yCss,
-                  transform: `${image.xUnit ==='%' ? 'translateX(calc(calc('+image.xCss+') * '+ (image.xBase === 'right' ? '1' : '-1') +'))' : ''} ${image.yUnit ==='%' ? 'translateY(calc(calc('+image.yCss+') * '+ (image.yBase === 'bottom' ? '1' : '-1') +'))' : ''}`,
+                  transform: `${image.xUnit ==='%' ? 'translateX(calc(calc('+image.xCss+') * '+ (image.xBase === 'right' ? '1' : '-1') +'))' : 'translateX(0)'} ${image.yUnit ==='%' ? 'translateY(calc(calc('+image.yCss+') * '+ (image.yBase === 'bottom' ? '1' : '-1') +'))' : 'translateY(0)'}`,
+                  width: `${image.widthCss} !important`,
+                  height: `${image.heightCss} !important`,
                   zIndex: index,
                   '--blend-mode': image.blendMode
                 }"
@@ -1058,12 +818,6 @@ const copyToClipboard = () => {
                 >
                   <img 
                     :src="image.url" 
-                    :style="{
-                      width: image.widthUnit === 'auto' ? 'auto !important' : `${image.width}px !important`,
-                      height: image.heightUnit === 'auto' ? 'auto !important' : `${image.height}px !important`,
-                      objectFit: 'fill',
-                      objectPosition: 'center'
-                    }"
                     draggable="false"
                   >
                 </div>
@@ -1124,17 +878,17 @@ const copyToClipboard = () => {
             <div class="input-wrapper">
               <div class="quick-buttons" v-if="images[selectedImage].xUnit === '%'">
                 <button @click="updateImageProperty(selectedImage, 'x', 0)"
-                :disabled="(Math.abs(images[selectedImage].width + canvasInnerInset*2 - canvasContainer.getBoundingClientRect().width) < 1 && 
+                :disabled="(Math.abs(images[selectedImage].widthPx - canvasInner.getBoundingClientRect().width) < 1 && 
                             images[selectedImage].xUnit === '%' && 
                             images[selectedImage].widthUnit === '%')">{{images[selectedImage].xBase === 'right' ? 'right' : 'left'}}</button>
                 <button @click="updateImageProperty(selectedImage, 'x', 50)"
-                :disabled="(Math.abs(images[selectedImage].width + canvasInnerInset*2 - canvasContainer.getBoundingClientRect().width) < 1 && 
+                :disabled="(Math.abs(images[selectedImage].widthPx - canvasInner.getBoundingClientRect().width) < 1 && 
                             images[selectedImage].xUnit === '%' && 
                             images[selectedImage].widthUnit === '%')">center</button>
                 <button @click="updateImageProperty(selectedImage, 'x', 100)"
                 :disabled="images[selectedImage].xUnit === 'auto' || 
                           images[selectedImage].xUnit === 'center' || 
-                          (Math.abs(images[selectedImage].width + canvasInnerInset*2 - canvasContainer.getBoundingClientRect().width) < 1 && 
+                          (Math.abs(images[selectedImage].widthPx - canvasInner.getBoundingClientRect().width) < 1 && 
                             images[selectedImage].xUnit === '%' && 
                             images[selectedImage].widthUnit === '%')">{{images[selectedImage].xBase === 'right' ? 'left' : 'right'}}</button>
               </div>
@@ -1158,7 +912,7 @@ const copyToClipboard = () => {
                 :value="displayValue(images[selectedImage], 'x')"
                 :disabled="images[selectedImage].xUnit === 'auto' || 
                           images[selectedImage].xUnit === 'center' || 
-                          (Math.abs(images[selectedImage].width + canvasInnerInset*2 - canvasContainer.getBoundingClientRect().width) < 1 && 
+                          (Math.abs(images[selectedImage].widthPx - canvasInner.getBoundingClientRect().width) < 1 && 
                             images[selectedImage].xUnit === '%' && 
                             images[selectedImage].widthUnit === '%')"
                 @keydown="e => {
@@ -1197,13 +951,13 @@ const copyToClipboard = () => {
             <div class="input-wrapper">
               <div class="quick-buttons" v-if="images[selectedImage].yUnit === '%'">                
                 <button @click="updateImageProperty(selectedImage, 'y', 0)"
-                :disabled="(Math.abs(images[selectedImage].height + canvasInnerInset*2 - canvasContainer.getBoundingClientRect().height) < 10 && 
+                :disabled="(Math.abs(images[selectedImage].heightPx - canvasInner.getBoundingClientRect().height) < 1 && 
                             images[selectedImage].heightUnit === '%')">{{images[selectedImage].yBase === 'bottom' ? 'bottom' : 'top'}}</button>
                 <button @click="updateImageProperty(selectedImage, 'y', 50)"
-                :disabled="(Math.abs(images[selectedImage].height + canvasInnerInset*2 - canvasContainer.getBoundingClientRect().height) < 10 && 
+                :disabled="(Math.abs(images[selectedImage].heightPx - canvasInner.getBoundingClientRect().height) < 1 && 
                             images[selectedImage].heightUnit === '%')">center</button>
                 <button @click="updateImageProperty(selectedImage, 'y', 100)"
-                :disabled="(Math.abs(images[selectedImage].height + canvasInnerInset*2 - canvasContainer.getBoundingClientRect().height) < 10 && 
+                :disabled="(Math.abs(images[selectedImage].heightPx - canvasInner.getBoundingClientRect().height) < 1 && 
                             images[selectedImage].heightUnit === '%')">{{images[selectedImage].yBase === 'bottom' ? 'top' : 'bottom'}}</button>
               </div>
               <div class="quick-buttons" v-if="['vw', 'vh'].includes(images[selectedImage].yUnit)">
@@ -1226,7 +980,7 @@ const copyToClipboard = () => {
                 :value="displayValue(images[selectedImage], 'y')"
                 :disabled="images[selectedImage].yUnit === 'auto' || 
                           images[selectedImage].yUnit === 'center' || 
-                          (Math.abs(images[selectedImage].height + canvasInnerInset*2 - canvasContainer.getBoundingClientRect().height) < 1 && 
+                          (Math.abs(images[selectedImage].heightPx - canvasInner.getBoundingClientRect().height) < 1 && 
                             images[selectedImage].yUnit === '%' && 
                             images[selectedImage].heightUnit === '%')"
                 @keydown="e => {
@@ -1256,15 +1010,15 @@ const copyToClipboard = () => {
             <label>Size:</label>
             <div class="radio-group" style="grid-column: 2 / 5;">
               <label>
-                <input type="radio" v-model="images[selectedImage].sizeMode" value="custom" name="sizeMode">
+                <input type="radio" v-model="images[selectedImage].sizeMode" value="custom" name="sizeMode" @click="handleSizeModeChange(images[selectedImage],'custom')">
                 custom
               </label>
               <label>
-                <input type="radio" v-model="images[selectedImage].sizeMode" value="contain" name="sizeMode">
+                <input type="radio" v-model="images[selectedImage].sizeMode" value="contain" name="sizeMode" @click="handleSizeModeChange(images[selectedImage],'contain')">
                 contain
               </label>
               <label>
-                <input type="radio" v-model="images[selectedImage].sizeMode" value="cover" name="sizeMode">
+                <input type="radio" v-model="images[selectedImage].sizeMode" value="cover" name="sizeMode" @click="handleSizeModeChange(images[selectedImage],'cover')">
                 cover
               </label>
             </div>
@@ -1616,9 +1370,15 @@ h1 {
   display: block !important;
   mix-blend-mode: var(--blend-mode, normal);
 }
-
+.main-image {
+  position: absolute !important;
+  inset: 0;
+}
 .image-container img {
   display: block !important;
+  position: absolute !important;
+  inset: 0;
+  object-fit: fill;
 }
 
 
@@ -2060,7 +1820,7 @@ label {
   height: 16px;
 }
 .canvas-control-group {
-  z-index: 100;
+  z-index: 110;
   position: absolute;
   bottom: 10px;
   left: 10px;
