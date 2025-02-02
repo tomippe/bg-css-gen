@@ -19,7 +19,13 @@ const imgPath = ref(localStorage.getItem('imgPath') || '')
 const useShortcode = ref(localStorage.getItem('useShortcode') !== 'false') // デフォルトはtrue
 const backgroundColor = ref('')
 const fileInput = ref(null)
-let showCanvasInner = ref(true)
+const showCanvasInner = ref(true)
+let canvasInnerInset = ref(50)
+const targetInset = ref(0)
+watch(showCanvasInner, (newValue) => { 
+  targetInset.value = newValue ? 50 : 0;
+  gsap.to(canvasInnerInset, { duration: 1, value: targetInset.value, ease: "none" });
+});
 
 const openFileDialog = () => {
   fileInput.value.click()
@@ -615,7 +621,8 @@ watch(() => images.value.map(image => ({
   })
 }, { deep: true })
 
-watch(canvasInner.value, () => {
+
+watch(canvasInnerInset, (newValue) => {
   nextTick(() => {
     updateImageSize();
   })
@@ -779,7 +786,7 @@ const copyToClipboard = () => {
           ref="canvasInner"
           :style="{
             backgroundColor: backgroundColor,
-            inset: showCanvasInner ? '50px' : '0px'
+            inset: `${canvasInnerInset}px`
           }">
             <template v-for="(image, index) in images" :key="index">
               <div 
@@ -1355,14 +1362,12 @@ h1 {
   position: relative;
   border-radius: 4px;
   overflow: visible;
-  transition: clip-path 1s linear;
   container-type: size;
 }
 
 .canvas-inner {
   position: absolute;
   background: #fff;
-  transition: inset 1s linear;
   overflow: hidden;
 }
 
