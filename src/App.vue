@@ -244,24 +244,6 @@ const handleKeyDown = (event) => {
   }
 }
 
-const updateImageSize = () => { 
-  images.value.forEach((image, index) => {
-    const imgEl = document.querySelector(`img[src="${image.url}"]`)
-    updateImageProperty(index, 'width', image.width)
-    updateImageProperty(index, 'height', image.height)
-    nextTick(() => {
-      if(image.widthUnit === 'auto'){
-        image.widthPx = imgEl.offsetWidth
-        image.widthCss = cssValue(image, 'width', image.width, image.widthUnit)
-      }
-      if(image.heightUnit === 'auto'){
-        image.heightPx = imgEl.offsetHeight
-        image.heightCss = cssValue(image, 'height', image.height, image.heightUnit)
-      }
-    })
-    handleSizeModeChange(image,image.sizeMode)
-  })
-}
 
 // リサイズ時の処理を修正
 const handleResize = () => {
@@ -566,10 +548,31 @@ const resetProperty = (property) => {
   }
 }
 
+const updateImageSize = () => { 
+  images.value.forEach((image, index) => {
+    const imgEl = document.querySelector(`img[src="${image.url}"]`)
+    updateImageProperty(index, 'width', image.width)
+    updateImageProperty(index, 'height', image.height)
+    nextTick(() => {
+      if(image.widthUnit === 'auto'){
+        image.widthPx = image.heightPx * image.ratio
+        image.widthCss = cssValue(image, 'width', image.width, image.widthUnit)
+      }
+      if(image.heightUnit === 'auto'){
+        image.heightPx = image.widthPx / image.ratio
+        image.heightCss = cssValue(image, 'height', image.height, image.heightUnit)
+      }
+      nextTick(() => {
+        handleSizeModeChange(image,image.sizeMode)
+      })
+    })
+  })
+}
 const handleSizeModeChange = (image, newmode) => {
   const mode = newmode ? newmode : image.sizeMode
   const box = canvasInner.value.getBoundingClientRect()
-  const isWideImage = image.ratio > box.width / box.height    
+  const isWideImage = image.ratio > box.width / box.height
+  nextTick(() => {
   if (mode === 'contain') {
     if (isWideImage) {
       // 横長画像の場合
@@ -582,21 +585,24 @@ const handleSizeModeChange = (image, newmode) => {
       image.height = 100
       image.widthUnit = 'auto'
     }
-  } else if (mode === 'cover') {
-    if (isWideImage) {
-      // 横長画像の場合
-      image.heightUnit = '%'
-      image.height = 100
-      image.widthUnit = 'auto'
-    } else {
-      // 縦長画像の場合
-      image.widthUnit = '%'
-      image.width = 100
-      image.heightUnit = 'auto'
+    } else if (mode === 'cover') {
+      if (isWideImage) {
+        // 横長画像の場合
+        image.heightUnit = '%'
+        image.height = 100
+        image.widthUnit = 'auto'
+      } else {
+        // 縦長画像の場合
+        image.widthUnit = '%'
+        image.width = 100
+        image.heightUnit = 'auto'
+      }
     }
-  }
-  updateImageProperty(selectedImage.value, 'width', image.width)
-  updateImageProperty(selectedImage.value, 'height', image.height)
+    nextTick(() => {
+      updateImageProperty(image, 'width', image.width)
+      updateImageProperty(image, 'height', image.height)
+    })
+  })
 }
 
 watch(() => images.value.map(image => ({
