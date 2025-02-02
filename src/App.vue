@@ -244,8 +244,7 @@ const handleKeyDown = (event) => {
   }
 }
 
-const updateImageSize = () => {
-  const box = canvasInner.value.getBoundingClientRect()
+const updateImageSize = () => { 
   images.value.forEach((image, index) => {
     const imgEl = document.querySelector(`img[src="${image.url}"]`)
     updateImageProperty(index, 'width', image.width)
@@ -260,8 +259,6 @@ const updateImageSize = () => {
         image.heightCss = cssValue(image, 'height', image.height, image.heightUnit)
       }
     })
-    console.log(image.widthCss)
-    console.log(image.heightCss)
     handleSizeModeChange(image,image.sizeMode)
   })
 }

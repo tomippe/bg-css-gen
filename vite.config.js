@@ -4,9 +4,9 @@ import vue from '@vitejs/plugin-vue'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [vue()],
-  base: '/bg-css-gen-v2/',
+  base: '/bg-css-gen/',
   build: {
-    outDir: '../apps.tomippe.jp/bg-css-gen-v2',
+    outDir: '../apps.tomippe.jp/bg-css-gen',
       emptyOutDir: true,
       rollupOptions: {
         output: { // entry chunk assets それぞれの書き出し名の指定
