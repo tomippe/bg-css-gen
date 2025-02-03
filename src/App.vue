@@ -1323,11 +1323,14 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  height: 100vh;
   box-sizing: border-box;
   width: 100%;
+  min-height: 100vh;
   overflow: hidden;
   position: relative;
+  @media (min-width: 768px) {
+    height: 100vh;
+  }
 }
 
 .app-container::before {
@@ -1354,7 +1357,7 @@ h1 {
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
   font-weight: 600;
   position: absolute;
-  bottom: calc(26px - 0.5em);
+  top: calc(26px - 0.5em);
   left: 0;
   right: 0;
   text-align: center;
@@ -1503,12 +1506,12 @@ h1 {
 }
 
 .bottom-panel {
-  /* flex: 0 0 25em;
-  min-height: 200px; */
   display: grid;
-  grid-template-columns: minmax(300px, var(--left-panel-width, 1fr)) minmax(300px, 1fr);
   gap: 10px;
-  height: 22em;
+  @media (min-width: 768px) {
+    grid-template-columns: minmax(300px, var(--left-panel-width, 1fr)) minmax(300px, 1fr);
+    height: 22em;
+  }
 }
 
 .image-controls, .output {
