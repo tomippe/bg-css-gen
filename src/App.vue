@@ -22,6 +22,7 @@ const fileInput = ref(null)
 const showCanvasInner = ref(true)
 let canvasInnerInset = ref(50)
 const targetInset = ref(0)
+const blendMode = ref('normal') // 追加：グローバルなブレンドモード設定
 watch(showCanvasInner, (newValue) => { 
   targetInset.value = newValue ? 50 : 0;
   gsap.to(canvasInnerInset, { duration: 1, value: targetInset.value, ease: "none" });
@@ -65,8 +66,7 @@ const addImage = (url, path) => {
     heightUnit: 'auto',
     ratio: 1,
     repeat: 'no-repeat',
-    sizeMode: 'custom',
-    blendMode: 'normal'
+    sizeMode: 'custom'
   }  
   const index = images.value.length
   images.value.push({...newImage})
@@ -351,6 +351,7 @@ const moveDown = () => {
 }
 
 const px = (image, property, value, unit) => {
+  const canvas = canvasContainer.value.getBoundingClientRect()
   const box = canvasInner.value.getBoundingClientRect()
   const imgEl = document.querySelector(`img[src="${image.url}"]`)
   if(!imgEl) return 0
@@ -367,21 +368,34 @@ const px = (image, property, value, unit) => {
       preresult = (containerSize - imageSize) * value / 100
       result = reverse ? containerSize - preresult - imageSize : preresult
     } else if (property === 'width' || property === 'height'){
-      // W/Hの場合は、キャンバスインナーサイズを基準に計算
+      // W/Hの場合は、インナーサイズを基準に計算
       const containerSize = (property === 'width' ? box.width : box.height)
       result = (value / 100) * containerSize
     }
   } else if (unit === 'vw' || unit === 'vh') {
     if (property === 'x' || property === 'y') {
-      // X/Yの場合は、キャンバスインナーサイズを基準に計算
+      // X/Yの場合は、キャンバスサイズ・キャンバスインナーサイズを基準に計算
       const containerSize = property === 'x' ? box.width : box.height
-      const containerSize2 = unit === 'vw' ? box.width : box.height
+      const containerSize2 = unit === 'vw' ? canvas.width : canvas.height
       const imageSize = property === 'x' ? image.width : image.height
       preresult = (value / 100) * containerSize2
       result = reverse ? containerSize - preresult - imageSize : preresult
     } else if (property === 'width' || property === 'height') {
       // W/Hの場合は、キャンバスサイズを基準に計算
-      const containerSize = unit === 'vw' ? box.width : box.height
+      const containerSize = unit === 'vw' ? canvas.width : canvas.height
+      result = (value / 100) * containerSize
+    }
+  } else if (unit === 'cqw' || unit === 'cqh') {
+    if (property === 'x' || property === 'y') {
+      // X/Yの場合は、インナーサイズを基準に計算
+      const containerSize = property === 'x' ? box.width : box.height
+      const containerSize2 = unit === 'cqw' ? box.width : box.height
+      const imageSize = property === 'x' ? image.width : image.height
+      preresult = (value / 100) * containerSize2
+      result = reverse ? containerSize - preresult - imageSize : preresult
+    } else if (property === 'width' || property === 'height') {
+      // W/Hの場合は、キャンバスサイズを基準に計算
+      const containerSize = unit === 'cqw' ? box.width : box.height
       result = (value / 100) * containerSize
     }
   } else {
@@ -401,6 +415,8 @@ const px = (image, property, value, unit) => {
       result = value * (base[unit] || 1)
     }
   }
+
+  console.log(property,result)
   return !isNaN(result) && result != Infinity && result != -Infinity ? result : 0
 }
 
@@ -429,13 +445,26 @@ const unitValue = (image, property, pixelValue, unit) => {
     if (property === 'x' || property === 'y') {
       // X/Yの場合は、キャンバスインナーサイズを基準に計算
       const containerSize = property === 'x' ? box.width : box.height
-      const containerSize2 = unit === 'vw' ? box.width : box.height
+      const containerSize2 = unit === 'vw' ? canvas.width : canvas.height
       const imageSize = property === 'x' ? image.width : image.height
       preresult = reverse ? containerSize - pixelValue - imageSize : pixelValue
       result = preresult / containerSize2 * 100
     } else if (property === 'width' || property === 'height') {
       // W/Hの場合は、キャンバスサイズを基準に計算
       const containerSize = (unit === 'vw' ? canvas.width : canvas.height)
+      result = pixelValue / containerSize * 100
+    }
+  } else if (unit === 'cqw' || unit === 'cqh') {
+    if (property === 'x' || property === 'y') {
+      // X/Yの場合は、キャンバスインナーサイズを基準に計算
+      const containerSize = property === 'x' ? box.width : box.height
+      const containerSize2 = unit === 'cqw' ? box.width : box.height
+      const imageSize = property === 'x' ? image.width : image.height
+      preresult = reverse ? containerSize - pixelValue - imageSize : pixelValue
+      result = preresult / containerSize2 * 100
+    } else if (property === 'width' || property === 'height') {
+      // W/Hの場合は、キャンバスサイズを基準に計算
+      const containerSize = (unit === 'cqw' ? box.width : box.height)
       result = pixelValue / containerSize * 100
     }
   } else {
@@ -469,6 +498,7 @@ const displayValue = (image, property) => {
 }
 
 const cssValue = (image, property,value, unit) => {
+  const box = canvasInner.value.getBoundingClientRect()
   const imgEl = document.querySelector(`img[src="${image.url}"]`)
   if (unit === 'auto') {
     if(property === 'width') {
@@ -481,6 +511,8 @@ const cssValue = (image, property,value, unit) => {
     return value + 'cqw'
   } else if (unit === 'vh') {
     return value + 'cqh'
+  } else if (unit === 'cqw' || unit === 'cqh') {
+    return px(image, property, value, unit) + 'px'
   } else { 
     return value + unit
   }
@@ -624,6 +656,9 @@ watch(() => images.value.map(image => ({
 watch(canvasInnerInset, (newValue) => {
   nextTick(() => {
     updateImageSize();
+    images.value.forEach((image, index) => {
+      handleSizeModeChange(image,image.sizeMode)
+    })
   })
 })
 
@@ -704,36 +739,29 @@ const generatedCSS = computed(() => {
         url: fullPath,
         repeat: img.repeat,
         position,
-        size,
-        blendMode: img.blendMode
+        size
       }
     }
   })
 
   if (useShortcode.value) {
     const bgString = bgImages.join(',\n    ')
-    const blendModes = [...images.value]
-      .reverse()
-      .map(img => img.blendMode)
-      .filter(mode => mode !== 'normal')
-
     const bgColor = (backgroundColor.value ? (bgImages.length>0 ? ' ' : '') + `${backgroundColor.value}` : '')
     return `background:${bgImages.length>1 ? '\n    ' : bgImages.length>0 || backgroundColor.value ? ' ' : ' none'}${bgString}${bgColor};${
-      blendModes.length > 0 ? `\nbackground-blend-mode: ${blendModes.join(', ')};` : ''
+      blendMode.value !== 'normal' ? `\nbackground-blend-mode: ${blendMode.value};` : ''
     }`
   } else {
     const urls = bgImages.map(bg => `url("${bg.url}")`).join(', ')
     const repeats = bgImages.map(bg => bg.repeat).join(', ')
     const positions = bgImages.map(bg => bg.position).join(', ')
     const sizes = bgImages.map(bg => bg.size).join(', ')
-    const blendModes = bgImages.map(bg => bg.blendMode).filter(mode => mode !== 'normal').join(', ')
 
     return `background-image: ${urls};${
       repeats !== 'repeat' ? `\nbackground-repeat: ${repeats};` : ''
     }\nbackground-position: ${positions};\nbackground-size: ${sizes};${
       backgroundColor.value ? `\nbackground-color: ${backgroundColor.value};` : ''
     }${
-      blendModes ? `\nbackground-blend-mode: ${blendModes};` : ''
+      blendMode.value !== 'normal' ? `\nbackground-blend-mode: ${blendMode.value};` : ''
     }`
   }
 })
@@ -801,7 +829,7 @@ const copyToClipboard = () => {
                   width: `${image.widthCss} !important`,
                   height: `${image.heightCss} !important`,
                   zIndex: index,
-                  '--blend-mode': image.blendMode
+                  '--blend-mode': blendMode
                 }"
                 @pointerdown.prevent="startDrag($event, index)"
                 @click.stop
@@ -940,6 +968,8 @@ const copyToClipboard = () => {
               <option value="px">px</option>
               <option value="vw">vw</option>
               <option value="vh">vh</option>
+              <option value="cqw">cqw</option>
+              <option value="cqh">cqh</option>
               <option value="em">em</option>
               <option value="rem">rem</option>
               <option value="ex">ex</option>
@@ -1008,6 +1038,8 @@ const copyToClipboard = () => {
               <option value="px">px</option>
               <option value="vw">vw</option>
               <option value="vh">vh</option>
+              <option value="cqw">cqw</option>
+              <option value="cqh">cqh</option>
               <option value="em">em</option>
               <option value="rem">rem</option>
               <option value="ex">ex</option>
@@ -1086,7 +1118,8 @@ const copyToClipboard = () => {
               <option value="px">px</option>
               <option value="vw">vw</option>
               <option value="vh">vh</option>
-              <option value="svw">svw</option>
+              <option value="cqw">cqw</option>
+              <option value="cqh">cqh</option>
               <option value="em">em</option>
               <option value="rem">rem</option>
               <option value="ex">ex</option>
@@ -1148,6 +1181,8 @@ const copyToClipboard = () => {
               <option value="px">px</option>
               <option value="vw">vw</option>
               <option value="vh">vh</option>
+              <option value="cqw">cqw</option>
+              <option value="cqh">cqh</option>
               <option value="em">em</option>
               <option value="rem">rem</option>
               <option value="ex">ex</option>
@@ -1164,39 +1199,7 @@ const copyToClipboard = () => {
             </select>
             <button class="reset" @click="resetProperty('repeat')">↺</button>
           </div>
-          <div class="control-group">
-            <label>Blend:</label>
-            <select v-model="images[selectedImage].blendMode" style="grid-column: 2 / 4">
-              <option value="normal">normal</option>
-              <option value="multiply">multiply</option>
-              <option value="screen">screen</option>
-              <option value="overlay">overlay</option>
-              <option value="darken">darken</option>
-              <option value="lighten">lighten</option>
-              <option value="color-dodge">color-dodge</option>
-              <option value="color-burn">color-burn</option>
-              <option value="hard-light">hard-light</option>
-              <option value="soft-light">soft-light</option>
-              <option value="difference">difference</option>
-              <option value="exclusion">exclusion</option>
-              <option value="hue">hue</option>
-              <option value="saturation">saturation</option>
-              <option value="color">color</option>
-              <option value="luminosity">luminosity</option>
-            </select>
-            <button class="reset" @click="resetProperty('blendMode')">↺</button>
-          </div>
-          <!-- <div class="control-group">
-            <label>Lock:</label>
-            <div class="checkbox-wrapper">
-              <input 
-                type="checkbox" 
-                :checked="isAspectRatioLocked"
-                @change="e => toggleAspectRatio(selectedImage)"
-              >
-              <span>Aspect Ratio</span>
-            </div>
-          </div> -->
+          <!-- Blend modeコントロールを削除 -->
         </div>
         <div class="control-groups" v-else>
           <div v-if="images.length > 0">
@@ -1268,6 +1271,27 @@ const copyToClipboard = () => {
               placeholder="none"
               class="color-text-input"
             >
+          </div>
+          <div class="control-group">
+            <label>Blend:</label>
+            <select v-model="blendMode" style="width: 120px">
+              <option value="normal">normal</option>
+              <option value="multiply">multiply</option>
+              <option value="screen">screen</option>
+              <option value="overlay">overlay</option>
+              <option value="darken">darken</option>
+              <option value="lighten">lighten</option>
+              <option value="color-dodge">color-dodge</option>
+              <option value="color-burn">color-burn</option>
+              <option value="hard-light">hard-light</option>
+              <option value="soft-light">soft-light</option>
+              <option value="difference">difference</option>
+              <option value="exclusion">exclusion</option>
+              <option value="hue">hue</option>
+              <option value="saturation">saturation</option>
+              <option value="color">color</option>
+              <option value="luminosity">luminosity</option>
+            </select>
           </div>
           <div class="control-group">
             <label>
