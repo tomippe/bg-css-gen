@@ -512,7 +512,9 @@ const cssValue = (image, property,value, unit) => {
   } else if (unit === 'vh') {
     return value + 'cqh'
   } else if (unit === 'cqw' || unit === 'cqh') {
-    return px(image, property, value, unit) + 'px'
+    const containerSize = unit === 'cqw' ? box.width : box.height
+    const result = (value / 100) * containerSize
+    return result + 'px'
   } else { 
     return value + unit
   }
@@ -928,7 +930,7 @@ const copyToClipboard = () => {
                             images[selectedImage].xUnit === '%' && 
                             images[selectedImage].widthUnit === '%')">{{images[selectedImage].xBase === 'right' ? 'left' : 'right'}}</button>
               </div>
-              <div class="quick-buttons" v-if="['vw', 'vh'].includes(images[selectedImage].xUnit)">
+              <div class="quick-buttons" v-if="['vw', 'vh', 'cqw', 'cqh'].includes(images[selectedImage].xUnit)">
                 <button @click="updateImageProperty(selectedImage, 'x', 0)">{{images[selectedImage].xBase === 'right' ? 'right' : 'left'}}</button>
                 <button @click="updateImageProperty(selectedImage, 'x', 50)">50</button>
               </div>
@@ -998,7 +1000,7 @@ const copyToClipboard = () => {
                 :disabled="(Math.abs(images[selectedImage].heightPx - canvasInner.getBoundingClientRect().height) < 1 && 
                             images[selectedImage].heightUnit === '%')">{{images[selectedImage].yBase === 'bottom' ? 'top' : 'bottom'}}</button>
               </div>
-              <div class="quick-buttons" v-if="['vw', 'vh'].includes(images[selectedImage].yUnit)">
+              <div class="quick-buttons" v-if="['vw', 'vh', 'cqw', 'cqh'].includes(images[selectedImage].yUnit)">
                 <button @click="updateImageProperty(selectedImage, 'y', 0)">{{images[selectedImage].yBase === 'bottom' ? 'bottom' : 'top'}}</button>
                 <button @click="updateImageProperty(selectedImage, 'y', 50)">50</button>
               </div>
@@ -1067,7 +1069,7 @@ const copyToClipboard = () => {
             <label>W:</label>
             <div class="checkbox-wrapper"></div>
             <div class="input-wrapper">
-              <div class="quick-buttons" v-if="['%', 'vw', 'vh'].includes(images[selectedImage].widthUnit)">
+              <div class="quick-buttons" v-if="['%', 'vw', 'vh', 'cqw', 'cqh'].includes(images[selectedImage].widthUnit)">
                 <button @click="updateImageProperty(selectedImage, 'width', 10)" :disabled="images[selectedImage].sizeMode === 'contain' || images[selectedImage].sizeMode === 'cover'">10</button>
                 <button @click="updateImageProperty(selectedImage, 'width', 30)" :disabled="images[selectedImage].sizeMode === 'contain' || images[selectedImage].sizeMode === 'cover'">30</button>
                 <button @click="updateImageProperty(selectedImage, 'width', 50)" :disabled="images[selectedImage].sizeMode === 'contain' || images[selectedImage].sizeMode === 'cover'">50</button>
@@ -1130,7 +1132,7 @@ const copyToClipboard = () => {
             <label>H:</label>
             <div class="checkbox-wrapper"></div>
             <div class="input-wrapper">
-              <div class="quick-buttons" v-if="['%', 'vw', 'vh'].includes(images[selectedImage].heightUnit)">
+              <div class="quick-buttons" v-if="['%', 'vw', 'vh', 'cqw', 'cqh'].includes(images[selectedImage].heightUnit)">
                 <button @click="updateImageProperty(selectedImage, 'height', 10)" :disabled="images[selectedImage].sizeMode === 'contain' || images[selectedImage].sizeMode === 'cover'">10</button>
                 <button @click="updateImageProperty(selectedImage, 'height', 30)" :disabled="images[selectedImage].sizeMode === 'contain' || images[selectedImage].sizeMode === 'cover'">30</button>
                 <button @click="updateImageProperty(selectedImage, 'height', 50)" :disabled="images[selectedImage].sizeMode === 'contain' || images[selectedImage].sizeMode === 'cover'">50</button>
