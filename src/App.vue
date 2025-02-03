@@ -404,7 +404,7 @@ const px = (image, property, value, unit) => {
       'px': 1,
       'em': 16,
       'rem': 16,
-      'ex': 8
+      'ex': 8.426
     }
     if (property === 'x' || property === 'y') {
       const containerSize = (property === 'x' ? box.width : box.height)
@@ -473,7 +473,7 @@ const unitValue = (image, property, pixelValue, unit) => {
       'px': 1,
       'em': 16,
       'rem': 16,
-      'ex': 8
+      'ex': 8.426
     }
     if (property === 'x' || property === 'y') {
       const containerSize = property === 'x' ? box.width : box.height
