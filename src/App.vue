@@ -809,7 +809,7 @@ const copyToClipboard = () => {
           style="display: none"
         >
         <h1>Multiple Background CSS Generator</h1>
-        <p class="logo"><a href="https://tomippe.jp/" target="_blank"><img src="https://apps.tomippe.jp/logo.svg" alt="Studio Tomippe"></a></p>
+        <p class="logo"><a href="https://tomippe.jp/" target="_blank"><img src="//tomippe.jp/img/apps-logo.svg" alt="StudioTomippe APPS"></a></p>
         <div class="canvas" ref="canvas">
           <div class="canvas-inner"
           ref="canvasInner"
@@ -1311,11 +1311,16 @@ const copyToClipboard = () => {
 </template>
 
 <style>
+html,body {
+  overflow: hidden;
+
+}
 body {
   margin: 0;
   padding: 0;
   background: #e0e0e0;
-  min-height: 100vh;
+  min-width: 500px;
+  height: 100dvh;
 }
 
 .app-container {
@@ -1325,12 +1330,11 @@ body {
   gap: 10px;
   box-sizing: border-box;
   width: 100%;
-  min-height: 100vh;
+  height: 100dvh;
+  position: absolute;
+  top: 0;
+  left: 0;
   overflow: hidden;
-  position: relative;
-  @media (min-width: 768px) {
-    height: 100vh;
-  }
 }
 
 .app-container::before {
@@ -1347,6 +1351,7 @@ body {
   flex: 1 1 0;
   /* min-height: 200px; */
   position: relative;
+  min-height: 400px;
 }
 h1 {
   color: white;
@@ -1373,6 +1378,7 @@ h1 {
 .logo img {
   height: 40px;
   width: auto;
+  opacity: 0.3;
 }
 .canvas-container {
   background: #f0f0f0;
