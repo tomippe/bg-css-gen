@@ -6,8 +6,8 @@ export default defineConfig({
   plugins: [vue()],
   base: '/bg-css-gen/',
   build: {
-    outDir: '../apps.tomippe.jp/bg-css-gen',
-      emptyOutDir: true,
+    outDir: 'build',
+    emptyOutDir: true,
       rollupOptions: {
         output: { // entry chunk assets それぞれの書き出し名の指定
           entryFileNames: `assets/[name].js`,

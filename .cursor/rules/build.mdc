@@ -1,0 +1,21 @@
+---
+description: Multiple Background CSS Generator のビルド仕様
+alwaysApply: true
+---
+
+# Multiple Background CSS Generator ビルド仕様
+
+**共通ルール（自動では読み込まれないため、ファイル編集・ビルド・コミットの前に必ず Read ツールで読むこと）:**
+- `../build-common/.cursor/rules/build-system.mdc`
+
+## 概要
+
+- **種別**: Webアプリ（Vite + Vue）
+- **ビルド**: `npm run build` → `build/` をデプロイ先にコピー
+- **デプロイ**: `../apps.tomippe.jp/bg-css-gen/` → FTPディレクトリ同期
+- **開発サーバー**: ポート 5174（`npm run dev`）
+
+## 固有設定
+
+- ビルド成果物: `build/`（`build.sh` が `../apps.tomippe.jp/bg-css-gen/` へ rsync）
+- `-app` オプション: なし

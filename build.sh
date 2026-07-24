@@ -30,18 +30,31 @@ done
 # バージョン読み込み
 VERSION=$(version_read)
 
-# package.json のバージョンを更新
+# package.json / manifest.json のバージョンを更新
 jq ".version = \"${VERSION}\"" package.json > package.json.tmp && mv package.json.tmp package.json
 echo "  ✓ package.jsonのバージョンを v${VERSION} に更新しました"
+if [ -f manifest.json ]; then
+    jq ".version = \"${VERSION}\"" manifest.json > manifest.json.tmp && mv manifest.json.tmp manifest.json
+    echo "  ✓ manifest.jsonのバージョンを v${VERSION} に更新しました"
+fi
 
 echo "🎨 ${APP_NAME} v${VERSION} をビルド中..."
 
 # 開発サーバーの停止
 dev_server_stop $DEV_PORT
 
-# ビルド (vite.config.js で outDir が ../apps.tomippe.jp/bg-css-gen に設定済み)
+# ビルド (vite → build/、デプロイ先へ rsync)
 echo "🔨 ビルドを開始します..."
 npm run build
+
+mkdir -p "$DEPLOY_DIR"
+rsync -a --delete build/ "$DEPLOY_DIR/"
+echo "  ✓ ${DEPLOY_DIR}/ にコピーしました"
+
+if [ -f manifest.json ]; then
+    cp manifest.json "$DEPLOY_DIR/manifest.json"
+    echo "  ✓ manifest.json をデプロイ先にコピーしました"
+fi
 
 echo "✅ ビルドが完了しました！"
 echo "  📁 デプロイ先: ${DEPLOY_DIR}/"
