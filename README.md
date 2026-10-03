@@ -1,5 +1,20 @@
-# Vue 3 + Vite
+# BG CSS Gen
 
-This template should help get you started developing with Vue 3 in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+画像から CSS の `background` 指定を視覚的に組み立てる Web ツールです（Vue 3 + Vite）。apps.tomippe.jp で公開: https://apps.tomippe.jp/bg-css-gen/
 
-Learn more about IDE Support for Vue in the [Vue Docs Scaling up Guide](https://vuejs.org/guide/scaling-up/tooling.html#ide-support).
+## 開発
+
+```bash
+npm install
+npm run dev
+```
+
+## ビルド
+
+```bash
+./build.sh
+```
+
+## ライセンス
+
+[MIT License](LICENSE) — 利用・改変・再配布を自由に行えます（著作権表示とライセンス文の保持が条件です）。著作権者: Studio Tomippe。
